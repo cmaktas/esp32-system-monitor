@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Service
@@ -25,51 +26,75 @@ public class SerialCommunicationService {
     }
 
     private void connectToPort() {
-        String configuredPortName = appProperties.getSerial().getPortName();
-        int baudRate = appProperties.getSerial().getBaudRate();
-
         SerialPort[] availablePorts = SerialPort.getCommPorts();
         if (availablePorts.length == 0) {
-            log.warn("No serial ports found on the system. Is the device plugged in?");
+            log.warn("No serial ports found attached to the system.");
             return;
         }
 
-        if ("AUTO".equalsIgnoreCase(configuredPortName)) {
-            activePort = availablePorts[0];
-            for (SerialPort port : availablePorts) {
-                String desc = port.getDescriptivePortName().toLowerCase();
-                String sysName = port.getSystemPortName().toLowerCase();
-                if (desc.contains("usb") || desc.contains("serial") || sysName.contains("usb") || sysName.contains("ch340")) {
-                    activePort = port;
-                    break;
-                }
+        log.info("Starting handshake protocol...");
+
+        for (SerialPort port : availablePorts) {
+            // Only test potential USB devices (skip Bluetooth, etc.)
+            String name = port.getSystemPortName().toLowerCase();
+            if (!name.contains("usb") && !name.startsWith("com") && !name.contains("ch340") && !name.contains("cp210")) {
+                continue;
             }
-            log.info("AUTO mode selected port: {} ({})", activePort.getSystemPortName(), activePort.getDescriptivePortName());
-        } else {
-            activePort = SerialPort.getCommPort(configuredPortName);
+
+            log.info("Testing port: {}", port.getSystemPortName());
+            port.setBaudRate(appProperties.getSerial().getBaudRate());
+
+            // Set 1-second timeout for read/write operations during handshake
+            port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 1000, 1000);
+
+            if (port.openPort()) {
+                try {
+                    // Send handshake ping
+                    String pingMsg = "PING_MONITOR\n";
+                    port.getOutputStream().write(pingMsg.getBytes(StandardCharsets.UTF_8));
+                    port.getOutputStream().flush();
+
+                    // Wait half a second for ESP32 to respond
+                    Thread.sleep(500);
+
+                    if (port.bytesAvailable() > 0) {
+                        byte[] readBuffer = new byte[port.bytesAvailable()];
+                        port.getInputStream().read(readBuffer);
+                        String response = new String(readBuffer, StandardCharsets.UTF_8).trim();
+
+                        // Did we get the expected response?
+                        if (response.contains("ACK_MONITOR")) {
+                            log.info(">>> SUCCESS! Device found. Connected to port: {}", port.getSystemPortName());
+                            activePort = port;
+                            outputStream = port.getOutputStream();
+
+                            // Revert timeout for normal asynchronous communication
+                            activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 100, 0);
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Error occurred while testing port: {}", port.getSystemPortName(), e);
+                }
+
+                // Close port and move to the next if no response
+                port.closePort();
+            }
         }
 
-        activePort.setBaudRate(baudRate);
-        activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 100, 0);
-
-        if (activePort.openPort()) {
-            outputStream = activePort.getOutputStream();
-            log.info("Successfully opened serial port: {}", activePort.getSystemPortName());
-        } else {
-            log.error("Failed to open serial port: {}", activePort.getSystemPortName());
-        }
+        log.error("No device responded to PING_MONITOR. Is the device plugged in?");
     }
 
     public void sendData(String data) {
         if (activePort != null && activePort.isOpen() && outputStream != null) {
             try {
-                outputStream.write(data.getBytes());
+                outputStream.write(data.getBytes(StandardCharsets.UTF_8));
                 outputStream.flush();
             } catch (Exception e) {
-                log.error("Error writing to serial port: ", e);
+                log.error("Failed to write data to serial port: ", e);
             }
         } else {
-            log.trace("Serial port is not open. Skipping data transmission.");
+            log.trace("Serial port is closed, data transmission skipped.");
         }
     }
 

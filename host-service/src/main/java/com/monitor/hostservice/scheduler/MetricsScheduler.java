@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -21,17 +23,22 @@ public class MetricsScheduler {
         try {
             SystemMetrics metrics = systemInfoService.getMetrics();
 
-            String cpuStr = String.format(java.util.Locale.US, "%.1f", metrics.cpuLoadPercent());
-            String ramStr = String.format(java.util.Locale.US, "%.1f", metrics.ramUsagePercent());
+            String cpuStr = String.format(Locale.US, "%.1f", metrics.cpuLoadPercent());
+            String ramStr = String.format(Locale.US, "%.1f", metrics.ramUsagePercent());
+            String tempStr = String.format(Locale.US, "%.1f", metrics.cpuTemperature());
 
-            log.info("System Status -> CPU: {}% | RAM: {}% (Used: {}GB / Total: {}GB)",
+            log.info("Sys Status -> CPU: {}% ({} Cores, Temp: {}°C) | RAM: {}% (Used: {}GB / Total: {}GB) | GPU: {} ({}GB VRAM)",
                     cpuStr,
+                    metrics.coreCount(),
+                    tempStr,
                     ramStr,
                     metrics.usedRamGigabytes(),
-                    metrics.totalRamGigabytes());
+                    metrics.totalRamGigabytes(),
+                    metrics.gpuName(),
+                    metrics.gpuVramGigabytes());
 
             String serialData = metrics.toSerialFormat();
-            log.debug("Data to be written to Serial Port: {}", serialData.trim());
+            log.debug("Serial Data: {}", serialData.trim());
 
             serialService.sendData(serialData);
 
