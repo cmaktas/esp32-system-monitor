@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: host-service
+  main:
+    web-application-type: none
+    banner-mode: off
+
+app:
+  monitor:
+    update-interval-ms: 1000
+  serial:
+    port-name: "AUTO"
+    baud-rate: 115200
+
+logging:
+  level:
+    root: INFO
+    com.monitor: DEBUG
+  file:
+    name: logs/hardware-monitor.log
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  logback:
+    rollingpolicy:
+      max-history: 7

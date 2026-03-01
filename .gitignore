@@ -1,0 +1,16 @@
+# Mac OS
+.DS_Store
+
+# IntelliJ IDEA / IDEs
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# Spring Boot / Maven (Host Service)
+host-service/target/
+host-service/*.log
+
+# PlatformIO (Device Firmware)
+device-firmware/.pio/
+device-firmware/libdeps/
