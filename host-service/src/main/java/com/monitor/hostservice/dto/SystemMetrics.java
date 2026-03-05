@@ -8,34 +8,28 @@ public record SystemMetrics(
         double ramUsagePercent,
         long totalRamGigabytes,
         long usedRamGigabytes,
-        double cpuTemperature,
-        int coreCount,
-        List<Double> coreLoads,
-        String gpuName,
-        long gpuVramGigabytes
+        double cpuTemperature,   // T:
+        double gpuTemperature,   // GT:
+        int coreCount,           // N:
+        List<Double> coreLoads,  // CL:
+        double gpuLoadPercent,   // GL:
+        long usedGpuVramGigabytes, // GU:
+        long gpuVramGigabytes,   // GV:
+        double cpuPowerWatts,    // CP:
+        double gpuPowerWatts,    // GP:
+        int cpuFrequencyMhz,     // CF:
+        int gpuClockMhz          // GF:
 ) {
     public String toSerialFormat() {
-        // Çekirdek yükleri listesini virgülle ayrılmış bir string'e çeviriyoruz (Örn: "15.2,0.5,45.0")
         String coresStr = coreLoads.stream()
                 .map(load -> String.format(java.util.Locale.US, "%.1f", load))
                 .collect(Collectors.joining(","));
 
-        // GPU adında olası null veya pipe (|) karakteri sorunlarını önleyelim
-        String safeGpuName = (gpuName != null && !gpuName.isBlank())
-                ? gpuName.replace("|", "")
-                : "Unknown GPU";
-
-        // Format: C:CPU%|R:RAM%|TR:TotalRAM|UR:UsedRAM|T:Temp|N:CoreCount|GN:GpuName|GV:GpuVram|CL:Core1,Core2...
         return String.format(java.util.Locale.US,
-                "C:%.1f|R:%.1f|TR:%d|UR:%d|T:%.1f|N:%d|GN:%s|GV:%d|CL:%s%n",
-                cpuLoadPercent,
-                ramUsagePercent,
-                totalRamGigabytes,
-                usedRamGigabytes,
-                cpuTemperature,
-                coreCount,
-                safeGpuName,
-                gpuVramGigabytes,
-                coresStr);
+                "C:%.1f|R:%.1f|TR:%d|UR:%d|T:%.1f|GT:%.1f|N:%d|GV:%d|GL:%.1f|GU:%d|CP:%.1f|GP:%.1f|CF:%d|GF:%d|CL:%s%n",
+                cpuLoadPercent, ramUsagePercent, totalRamGigabytes, usedRamGigabytes,
+                cpuTemperature, gpuTemperature, coreCount, gpuVramGigabytes, gpuLoadPercent,
+                usedGpuVramGigabytes, cpuPowerWatts, gpuPowerWatts,
+                cpuFrequencyMhz, gpuClockMhz, coresStr);
     }
 }

@@ -26,15 +26,17 @@ public class MetricsScheduler {
             String cpuStr = String.format(Locale.US, "%.1f", metrics.cpuLoadPercent());
             String ramStr = String.format(Locale.US, "%.1f", metrics.ramUsagePercent());
             String tempStr = String.format(Locale.US, "%.1f", metrics.cpuTemperature());
+            String gpuLoadStr = String.format(Locale.US, "%.1f", metrics.gpuLoadPercent());
 
-            log.info("Sys Status -> CPU: {}% ({} Cores, Temp: {}°C) | RAM: {}% (Used: {}GB / Total: {}GB) | GPU: {} ({}GB VRAM)",
+            log.info("Sys Status -> CPU: {}% ({} Cores, Temp: {}°C) | RAM: {}% (Used: {}GB / Total: {}GB) | GPU: {}% (Used: {}GB / Total: {}GB)",
                     cpuStr,
                     metrics.coreCount(),
                     tempStr,
                     ramStr,
                     metrics.usedRamGigabytes(),
                     metrics.totalRamGigabytes(),
-                    metrics.gpuName(),
+                    gpuLoadStr,
+                    metrics.usedGpuVramGigabytes(),
                     metrics.gpuVramGigabytes());
 
             String serialData = metrics.toSerialFormat();

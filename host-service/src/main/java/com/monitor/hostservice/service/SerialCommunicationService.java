@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -27,62 +29,64 @@ public class SerialCommunicationService {
 
     private void connectToPort() {
         SerialPort[] availablePorts = SerialPort.getCommPorts();
-        if (availablePorts.length == 0) {
-            log.warn("No serial ports found attached to the system.");
-            return;
+        log.info("Starting CONCURRENT handshake protocol on {} available ports...", availablePorts.length);
+
+        Optional<SerialPort> connectedPort = Arrays.stream(availablePorts)
+                .parallel()
+                .map(this::attemptHandshake)
+                .filter(java.util.Objects::nonNull)
+                .findFirst();
+
+        if (connectedPort.isPresent()) {
+            activePort = connectedPort.get();
+            outputStream = activePort.getOutputStream();
+            activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 100, 0);
+            log.info(">>> SUCCESS! Device found and locked on: {}", activePort.getSystemPortName());
+        } else {
+            log.error("No device responded to PING_MONITOR. Is the display plugged in?");
+        }
+    }
+
+    private SerialPort attemptHandshake(SerialPort port) {
+        String desc = port.getDescriptivePortName().toLowerCase();
+        if (!desc.contains("usb") && !desc.contains("ch340") && !desc.contains("cp210") && !desc.contains("prolific")) {
+            return null;
         }
 
-        log.info("Starting handshake protocol...");
+        log.debug("Testing likely candidate: {}", port.getSystemPortName());
+        port.setBaudRate(appProperties.getSerial().getBaudRate());
 
-        for (SerialPort port : availablePorts) {
-            // Only test potential USB devices (skip Bluetooth, etc.)
-            String name = port.getSystemPortName().toLowerCase();
-            if (!name.contains("usb") && !name.startsWith("com") && !name.contains("ch340") && !name.contains("cp210")) {
-                continue;
-            }
+        port.clearDTR();
+        port.clearRTS();
 
-            log.info("Testing port: {}", port.getSystemPortName());
-            port.setBaudRate(appProperties.getSerial().getBaudRate());
+        port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 300, 300);
 
-            // Set 1-second timeout for read/write operations during handshake
-            port.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 1000, 1000);
-
-            if (port.openPort()) {
-                try {
-                    // Send handshake ping
-                    String pingMsg = "PING_MONITOR\n";
-                    port.getOutputStream().write(pingMsg.getBytes(StandardCharsets.UTF_8));
-                    port.getOutputStream().flush();
-
-                    // Wait half a second for ESP32 to respond
-                    Thread.sleep(500);
-
-                    if (port.bytesAvailable() > 0) {
-                        byte[] readBuffer = new byte[port.bytesAvailable()];
-                        port.getInputStream().read(readBuffer);
-                        String response = new String(readBuffer, StandardCharsets.UTF_8).trim();
-
-                        // Did we get the expected response?
-                        if (response.contains("ACK_MONITOR")) {
-                            log.info(">>> SUCCESS! Device found. Connected to port: {}", port.getSystemPortName());
-                            activePort = port;
-                            outputStream = port.getOutputStream();
-
-                            // Revert timeout for normal asynchronous communication
-                            activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 100, 0);
-                            return;
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("Error occurred while testing port: {}", port.getSystemPortName(), e);
+        if (port.openPort(200)) {
+            try {
+                if (port.bytesAvailable() > 0) {
+                    port.readBytes(new byte[port.bytesAvailable()], port.bytesAvailable());
                 }
 
-                // Close port and move to the next if no response
-                port.closePort();
-            }
-        }
+                String pingMsg = "REQ_ESP32_SYSMON_v1_0x7A9B\n";
+                port.writeBytes(pingMsg.getBytes(StandardCharsets.UTF_8), pingMsg.length());
 
-        log.error("No device responded to PING_MONITOR. Is the device plugged in?");
+                Thread.sleep(200);
+
+                if (port.bytesAvailable() > 0) {
+                    byte[] readBuffer = new byte[port.bytesAvailable()];
+                    port.readBytes(readBuffer, readBuffer.length);
+                    String response = new String(readBuffer, StandardCharsets.UTF_8).trim();
+
+                    if (response.contains("ACK_ESP32_SYSMON_v1_0x7A9B")) {
+                        return port;
+                    }
+                }
+            } catch (Exception e) {
+                log.trace("Handshake failed on {}", port.getSystemPortName());
+            }
+            port.closePort();
+        }
+        return null;
     }
 
     public void sendData(String data) {

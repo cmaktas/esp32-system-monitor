@@ -1,0 +1,18 @@
+<service>
+    <id>ESP32MonitorHost</id>
+    <name>ESP32 Hardware Monitor Host</name>
+    <description>Reads system metrics and streams them to ESP32.</description>
+
+    <executable>java</executable>
+
+    <arguments>-jar "%BASE%\target\esp32-host-service.jar"</arguments>
+
+    <serviceaccount>
+        <domain>NT AUTHORITY</domain>
+        <user>LocalSystem</user>
+    </serviceaccount>
+
+    <log mode="roll">
+        <logpath>%BASE%\target\winsw-logs</logpath>
+    </log>
+</service>

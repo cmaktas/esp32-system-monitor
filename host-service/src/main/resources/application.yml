@@ -14,8 +14,8 @@ app:
 
 logging:
   level:
-    root: INFO
-    com.monitor: DEBUG
+    root: WARN
+    com.monitor: WARN
   file:
     name: logs/hardware-monitor.log
   pattern:

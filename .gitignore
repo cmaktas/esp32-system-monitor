@@ -1,16 +1,38 @@
-# Mac OS
+# ==========================================
+# Global
+# ==========================================
 .DS_Store
-
-# IntelliJ IDEA / IDEs
 .idea/
 *.iml
 *.iws
+*.ipr
 .vscode/
+HELP.md
 
-# Spring Boot / Maven (Host Service)
+# ==========================================
+# Host Service
+# ==========================================
 host-service/target/
+host-service/logs/
 host-service/*.log
+host-service/.mvn/wrapper/maven-wrapper.jar
+host-service/host-service.exe
 
-# PlatformIO (Device Firmware)
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ==========================================
+# Device Firmware
+# ==========================================
 device-firmware/.pio/
 device-firmware/libdeps/
