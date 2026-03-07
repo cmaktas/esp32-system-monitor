@@ -87,11 +87,10 @@ void drawBiosBar(int x, int y, int w, int h, float percent) {
 }
 
 // ----------------------------------------------------------------------------
-// --- IDLE SCREENS ---
+// --- IDLE SCREENS (CASIO AND BIOS SEPARATED) ---
 // ----------------------------------------------------------------------------
 void showCasioIdle() {
-  tft.fillScreen(CASIO_BG);
-  tft.setTextColor(CASIO_ON);
+  tft.setTextColor(CASIO_ON, CASIO_BG); 
   
   int centerX = 240; 
   int centerY = 120; 
@@ -106,24 +105,83 @@ void showCasioIdle() {
   tft.print("NO SIGNAL...");
 }
 
-void showBiosIdle() {
-  tft.fillScreen(BIOS_BLUE);
-  tft.setTextColor(BIOS_WHITE);
-  
-  tft.setTextSize(3);
-  tft.setCursor(50, 50);
-  tft.print("CMOS Checksum Error");
-  
-  tft.setCursor(50, 90);
-  tft.print("Wait for Host Service...");
-  
-  if (animFrame % 2 == 0) {
-      tft.fillRect(50, 130, 20, 30, BIOS_WHITE);
-  }
-  
-  tft.setTextSize(2);
-  tft.setCursor(50, 280);
-  tft.print("F1 to continue, DEL to enter Setup");
+// --- BIOS IDLE STATE VARIABLES ---
+const String BIOS_TEXT = "Awaiting host to connect...";
+int biosCharIndex = 0;
+int biosIdlePhase = 0;
+unsigned long biosPhaseTimer = 0;
+unsigned long biosTypeTimer = 0;
+
+int cursorX = 10;
+int cursorY = 10;
+bool cursorVisible = false;
+unsigned long lastCursorBlink = 0;
+
+void resetBiosIdle() {
+    biosCharIndex = 0;
+    biosIdlePhase = 0;
+    cursorX = 10;
+    cursorY = 10;
+    cursorVisible = true;
+    biosPhaseTimer = millis();
+    lastCursorBlink = millis();
+    tft.fillScreen(BIOS_BLUE);
+    tft.fillRect(cursorX, cursorY, 12, 16, BIOS_WHITE);
+}
+
+void handleBiosCursor() {
+    if (millis() - lastCursorBlink > 500) {
+        lastCursorBlink = millis();
+        cursorVisible = !cursorVisible;
+        if (cursorVisible) {
+            tft.fillRect(cursorX, cursorY, 12, 16, BIOS_WHITE);
+        } else {
+            tft.fillRect(cursorX, cursorY, 12, 16, BIOS_BLUE);
+        }
+    }
+}
+
+void handleBiosTyping() {
+    if (biosIdlePhase == 0) {
+        if (millis() - biosPhaseTimer > 1000) {
+            biosIdlePhase = 1;
+            biosTypeTimer = millis();
+        }
+    } 
+    else if (biosIdlePhase == 1) {
+        if (millis() - biosTypeTimer > 100) {
+            biosTypeTimer = millis();
+            
+            tft.fillRect(cursorX, cursorY, 12, 16, BIOS_BLUE);
+            
+            tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
+            tft.setTextSize(2);
+            tft.setCursor(cursorX, cursorY);
+            tft.print(BIOS_TEXT.charAt(biosCharIndex));
+            
+            cursorX += 12; 
+            biosCharIndex++;
+            
+            cursorVisible = true;
+            tft.fillRect(cursorX, cursorY, 12, 16, BIOS_WHITE);
+            lastCursorBlink = millis();
+
+            if (biosCharIndex >= BIOS_TEXT.length()) {
+                biosIdlePhase = 2;
+                biosPhaseTimer = millis();
+            }
+        }
+    }
+    else if (biosIdlePhase == 2) {
+        if (millis() - biosPhaseTimer > 3000) {
+            resetBiosIdle();
+        }
+    }
+}
+
+void updateBiosIdle() {
+    handleBiosTyping();
+    handleBiosCursor();
 }
 
 // ----------------------------------------------------------------------------
@@ -168,7 +226,8 @@ void renderCasio(float cpuLoad, int activeCores, String coreCount, int cpuMhz, f
   tft.drawString(buf, 350, 135);
   tft.setTextSize(2);
   tft.drawString("C", 410, 135);
-  drawCasioBar(20, 185, 440, 15, gpuLoad);
+  float vramPercent = (usedGpuVram.toFloat() / totalGpuVram.toFloat()) * 100.0;
+  drawCasioBar(20, 185, 440, 15, vramPercent);
 
   // --- MODULE 3: RAM UNIT ---
   tft.setTextSize(4);
@@ -226,8 +285,9 @@ void renderBios(float cpuLoad, int activeCores, String coreCount, int cpuMhz, fl
   tft.setTextSize(2);
   tft.drawString("C", 410, 135);
   
+  float vramPercent = (usedGpuVram.toFloat() / totalGpuVram.toFloat()) * 100.0;
   tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
-  drawBiosBar(20, 185, 440, 15, gpuLoad);
+  drawBiosBar(20, 185, 440, 15, vramPercent);
 
   // --- MODULE 3: RAM UNIT ---
   tft.setTextSize(4);
@@ -254,8 +314,9 @@ void setup() {
   
   tft.init(); 
   tft.setRotation(3); 
-  tft.fillScreen(currentTheme == BIOS ? BIOS_BLUE : CASIO_BG);
-  lastDataTime = millis();
+  
+  isIdle = false; 
+  lastDataTime = millis() - timeoutMs; 
 }
 
 void loop() {
@@ -314,18 +375,27 @@ void loop() {
 
   // IDLE (TIMEOUT) STATE
   if (millis() - lastDataTime > timeoutMs) {
-    isIdle = true;
-    
-    // Animation frame updater (every 500ms)
-    static unsigned long lastAnimUpdate = 0;
-    if (millis() - lastAnimUpdate > 500) {
+    if (!isIdle) {
+        isIdle = true;
+        animFrame = 0;
+        
         if (currentTheme == BIOS) {
-            showBiosIdle();
+            resetBiosIdle();
         } else {
-            showCasioIdle();
+            tft.fillScreen(CASIO_BG);
         }
-        animFrame++;
-        lastAnimUpdate = millis();
+    }
+    
+    // IDLE Durumunu çalıştır
+    if (currentTheme == BIOS) {
+        updateBiosIdle();
+    } else {
+        static unsigned long lastAnimUpdate = 0;
+        if (millis() - lastAnimUpdate > 500) {
+            showCasioIdle();
+            animFrame++;
+            lastAnimUpdate = millis();
+        }
     }
   }
 }

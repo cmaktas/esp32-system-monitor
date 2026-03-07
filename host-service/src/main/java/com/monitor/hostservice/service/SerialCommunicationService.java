@@ -40,7 +40,7 @@ public class SerialCommunicationService {
         if (connectedPort.isPresent()) {
             activePort = connectedPort.get();
             outputStream = activePort.getOutputStream();
-            activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 100, 0);
+            activePort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 1000);
             log.info(">>> SUCCESS! Device found and locked on: {}", activePort.getSystemPortName());
         } else {
             log.error("No device responded to PING_MONITOR. Is the display plugged in?");

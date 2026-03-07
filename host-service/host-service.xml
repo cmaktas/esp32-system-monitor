@@ -7,12 +7,10 @@
 
     <arguments>-jar "%BASE%\target\esp32-host-service.jar"</arguments>
 
-    <serviceaccount>
-        <domain>NT AUTHORITY</domain>
-        <user>LocalSystem</user>
-    </serviceaccount>
+    <env name="LHM_USERNAME" value="%LHM_USERNAME%"/>
+    <env name="LHM_PASSWORD" value="%LHM_PASSWORD%"/>
 
     <log mode="roll">
-        <logpath>%BASE%\target\winsw-logs</logpath>
+        <logpath>%BASE%\logs\winsw-logs</logpath>
     </log>
 </service>

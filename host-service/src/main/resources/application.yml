@@ -11,6 +11,10 @@ app:
   serial:
     port-name: "AUTO"
     baud-rate: 115200
+  lhm:
+    url: "http://localhost:8085/data.json"
+    username: ${LHM_USERNAME}
+    password: ${LHM_PASSWORD}
 
 logging:
   level:
