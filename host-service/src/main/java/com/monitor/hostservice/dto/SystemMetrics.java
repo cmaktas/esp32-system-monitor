@@ -39,7 +39,7 @@ public record SystemMetrics(
                 cpuTemperature, gpuTemperature, coreCount, gpuVramGigabytes, gpuLoadPercent,
                 usedGpuVramGigabytes, cpuPowerWatts, gpuPowerWatts,
                 cpuFrequencyMhz, gpuClockMhz,
-                ramTemperature, ramPowerWatts, // Yeni eklenenler
+                ramTemperature, ramPowerWatts,
                 coresStr);
     }
 }
