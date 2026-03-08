@@ -20,6 +20,8 @@ Theme currentTheme = BIOS;
 #define BIOS_WHITE  RGB_HEX(0xFFFFFF) 
 #define BIOS_YELLOW RGB_HEX(0xFFFF55) 
 #define BIOS_GRAY   RGB_HEX(0xAAAAAA) 
+#define BIOS_ORANGE RGB_HEX(0xFFAA00)
+#define BIOS_RED    RGB_HEX(0xFF5555)
 
 TFT_eSPI tft = TFT_eSPI(); 
 
@@ -74,13 +76,29 @@ void drawCasioBar(int x, int y, int w, int h, float percent) {
 void drawBiosBar(int x, int y, int w, int h, float percent) {
     if (percent > 100.0) percent = 100.0;
     int activeWidth = (percent / 100.0) * w;
-    
     tft.drawRect(x, y, w, h, BIOS_WHITE);
+    
+    int threshold1 = w / 4;
+    int threshold2 = w / 2;
+    int threshold3 = (w * 3) / 4;
     
     for (int i = 2; i < w - 2; i += 6) {
         if (i < activeWidth) {
-            tft.fillRect(x + i, y + 2, 4, h - 4, BIOS_YELLOW);
+            uint16_t segmentColor;
+            
+            if (i < threshold1) {
+                segmentColor = BIOS_WHITE;
+            } else if (i < threshold2) {
+                segmentColor = BIOS_YELLOW;
+            } else if (i < threshold3) {
+                segmentColor = BIOS_ORANGE;
+            } else {
+                segmentColor = BIOS_RED;
+            }
+            
+            tft.fillRect(x + i, y + 2, 4, h - 4, segmentColor);
         } else {
+            // Boş olan (dolmamış) segmentler
             tft.fillRect(x + i, y + 2, 4, h - 4, RGB_HEX(0x000055));
         }
     }
@@ -183,7 +201,6 @@ void updateBiosIdle() {
     handleBiosTyping();
     handleBiosCursor();
 }
-
 // ----------------------------------------------------------------------------
 // --- RENDER MODULES (SCREENS DRAWN WHEN DATA ARRIVES) ---
 // ----------------------------------------------------------------------------
@@ -191,7 +208,7 @@ void updateBiosIdle() {
 // 1. CASIO THEME
 void renderCasio(float cpuLoad, int activeCores, String coreCount, int cpuMhz, float cpuWatts, float cpuTemp,
                  float gpuLoad, String usedGpuVram, String totalGpuVram, int gpuMhz, float gpuWatts, float gpuTemp,
-                 float ramLoad, String usedRam, int roundedTotalRam) {
+                 float ramLoad, String usedRam, int roundedTotalRam, float ramWatts, float ramTemp) {
                      
   tft.setTextColor(CASIO_ON, CASIO_BG);
   char buf[64];
@@ -235,69 +252,130 @@ void renderCasio(float cpuLoad, int activeCores, String coreCount, int cpuMhz, f
   tft.print("RAM");
   tft.setTextSize(2);
   sprintf(buf, "%4.1f%% (%s/%dG)          ", ramLoad, usedRam.c_str(), roundedTotalRam);
-  tft.setCursor(105, 240); 
+  tft.setCursor(105, 230);
   tft.print(buf);
+
+  // RAM
+  sprintf(buf, "Pwr: %2.0fW          ", ramWatts);
+  tft.setCursor(105, 255); 
+  tft.print(buf);
+  tft.setTextSize(4);
+  sprintf(buf, "%2.0f", ramTemp);
+  tft.drawString(buf, 350, 235);
+  tft.setTextSize(2);
+  tft.drawString("C", 410, 235);
+
   drawCasioBar(20, 285, 440, 15, ramLoad);
 }
 
 // 2. BIOS THEME
 void renderBios(float cpuLoad, int activeCores, String coreCount, int cpuMhz, float cpuWatts, float cpuTemp,
                 float gpuLoad, String usedGpuVram, String totalGpuVram, int gpuMhz, float gpuWatts, float gpuTemp,
-                float ramLoad, String usedRam, int roundedTotalRam) {
+                float ramLoad, String usedRam, int roundedTotalRam, float ramWatts, float ramTemp) {
                     
   tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
   char buf[64];
+  int px, tx; 
 
+  // ==========================================
   // --- MODULE 1: CPU UNIT ---
+  // ==========================================
   tft.setTextSize(4);
   tft.setCursor(20, 35); 
   tft.print("CPU");
-  tft.setTextSize(2);
-  sprintf(buf, "%4.1f%% (%d/%s)     ", cpuLoad, activeCores, coreCount.c_str());
-  tft.setCursor(105, 30); tft.print(buf);
-  sprintf(buf, "%dMHz %2.0fW     ", cpuMhz, cpuWatts);
-  tft.setCursor(105, 55); tft.print(buf);
   
-  tft.setTextColor(BIOS_YELLOW, BIOS_BLUE);
-  tft.setTextSize(4);
-  sprintf(buf, "%2.0f", cpuTemp);
-  tft.drawString(buf, 350, 35);
   tft.setTextSize(2);
-  tft.drawString("C", 410, 35);
+  sprintf(buf, "%d/%s          ", activeCores, coreCount.c_str());
+  tft.setCursor(105, 30); 
+  tft.print(buf);
+  
+
+  tft.fillRect(105, 51, 200, 24, BIOS_BLUE); 
+  tft.setCursor(105, 55); 
+  sprintf(buf, "%dMHz", cpuMhz);
+  tft.print(buf);
+  
+  px = tft.getCursorX() + 10;
+  tft.drawBitmap(px, 53, icon_voltage_16x20, 16, 20, BIOS_WHITE); 
+  tft.setCursor(px + 20, 55);
+  sprintf(buf, "%.0f", cpuWatts);
+  tft.print(buf);
+  
+
+  tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
+  tft.setTextSize(4);
+  tft.setCursor(350, 35); 
+  sprintf(buf, "%2.0f", cpuTemp);
+  tft.print(buf);
+  
+  tx = tft.getCursorX(); 
+  tft.fillRect(tx, 30, 60, 40, BIOS_BLUE);
+  tft.drawBitmap(tx + 2, 30, icon_degree_24x24, 24, 24, BIOS_WHITE); 
   
   tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
   drawBiosBar(20, 85, 440, 15, cpuLoad);
 
+
+  // ==========================================
   // --- MODULE 2: GPU UNIT ---
+  // ==========================================
   tft.setTextSize(4);
   tft.setCursor(20, 135); 
   tft.print("GPU");
-  tft.setTextSize(2);
-  sprintf(buf, "%4.1f%% (%s/%sG)     ", gpuLoad, usedGpuVram.c_str(), totalGpuVram.c_str());
-  tft.setCursor(105, 130); tft.print(buf);
-  sprintf(buf, "%dMHz %2.0fW     ", gpuMhz, gpuWatts);
-  tft.setCursor(105, 155); tft.print(buf);
   
-  tft.setTextColor(BIOS_YELLOW, BIOS_BLUE);
-  tft.setTextSize(4);
-  sprintf(buf, "%2.0f", gpuTemp);
-  tft.drawString(buf, 350, 135);
   tft.setTextSize(2);
-  tft.drawString("C", 410, 135);
+  sprintf(buf, "%s/%sG          ", usedGpuVram.c_str(), totalGpuVram.c_str());
+  tft.setCursor(105, 130); 
+  tft.print(buf);
+  
+
+  tft.fillRect(105, 151, 200, 24, BIOS_BLUE); 
+  tft.setCursor(105, 155); 
+  sprintf(buf, "%dMHz", gpuMhz);
+  tft.print(buf);
+  
+  px = tft.getCursorX() + 10;
+  tft.drawBitmap(px, 153, icon_voltage_16x20, 16, 20, BIOS_WHITE);
+  tft.setCursor(px + 20, 155);
+  sprintf(buf, "%.0f", gpuWatts);
+  tft.print(buf);
+  
+  tft.setTextSize(4);
+  tft.setCursor(350, 135); 
+  sprintf(buf, "%2.0f", gpuTemp);
+  tft.print(buf);
+  
+  tx = tft.getCursorX();
+  tft.fillRect(tx, 130, 60, 40, BIOS_BLUE); 
+  tft.drawBitmap(tx + 2, 130, icon_degree_24x24, 24, 24, BIOS_WHITE);
   
   float vramPercent = (usedGpuVram.toFloat() / totalGpuVram.toFloat()) * 100.0;
   tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
   drawBiosBar(20, 185, 440, 15, vramPercent);
 
+
+  // ==========================================
   // --- MODULE 3: RAM UNIT ---
+  // ==========================================
   tft.setTextSize(4);
   tft.setCursor(20, 235); 
   tft.print("RAM");
+  
   tft.setTextSize(2);
-  sprintf(buf, "%4.1f%% (%s/%dG)          ", ramLoad, usedRam.c_str(), roundedTotalRam);
+  sprintf(buf, "%s/%dG               ", usedRam.c_str(), roundedTotalRam);
   tft.setCursor(105, 240); 
   tft.print(buf);
   
+  tft.setTextSize(4);
+  tft.setCursor(350, 235); 
+  sprintf(buf, "%2.0f", ramTemp);
+  tft.print(buf);
+  
+  tx = tft.getCursorX();
+  tft.fillRect(tx, 230, 60, 40, BIOS_BLUE); 
+  tft.drawBitmap(tx + 2, 230, icon_degree_24x24, 24, 24, BIOS_WHITE);
+  
+  tft.setTextColor(BIOS_WHITE, BIOS_BLUE);
   drawBiosBar(20, 285, 440, 15, ramLoad);
 }
 
@@ -355,6 +433,9 @@ void loop() {
       float gpuWatts = getValue(data, "GP:").toFloat();
       int cpuMhz = getValue(data, "CF:").toInt();
       int gpuMhz = getValue(data, "GF:").toInt();
+      float ramTemp = getValue(data, "RT:").toFloat();
+      float ramWatts = getValue(data, "RP:").toFloat();
+
       String coreCount = getValue(data, "N:");
       int activeCores = getActiveCores(getValue(data, "CL:"));
       int rawTotalRam = getValue(data, "TR:").toInt();
@@ -364,11 +445,11 @@ void loop() {
       if (currentTheme == BIOS) {
           renderBios(cpuLoad, activeCores, coreCount, cpuMhz, cpuWatts, cpuTemp,
                      gpuLoad, usedGpuVram, totalGpuVram, gpuMhz, gpuWatts, gpuTemp,
-                     ramLoad, usedRam, roundedTotalRam);
+                     ramLoad, usedRam, roundedTotalRam, ramWatts, ramTemp);
       } else {
           renderCasio(cpuLoad, activeCores, coreCount, cpuMhz, cpuWatts, cpuTemp,
                       gpuLoad, usedGpuVram, totalGpuVram, gpuMhz, gpuWatts, gpuTemp,
-                      ramLoad, usedRam, roundedTotalRam);
+                      ramLoad, usedRam, roundedTotalRam, ramWatts, ramTemp);
       }
     }
   }
@@ -386,7 +467,6 @@ void loop() {
         }
     }
     
-    // IDLE Durumunu çalıştır
     if (currentTheme == BIOS) {
         updateBiosIdle();
     } else {
